@@ -1,0 +1,31 @@
+% zeno, k8s
+
+# Get java env on deployment
+kubectl get deployment -n <namespace> -o json | jq -c '.items[] | .metadata.name as $name | .spec.template.spec.containers[] | .env[] | select((.name=="JAVA_TOOL_OPTIONS") or (.name=="JAVA_OPTS")) | [$name, .value]'
+
+$ namespace : kubectl get namespace --no-headers | awk {'print $1'}
+
+# Get api-resources
+kubectl api-resources -o wide | fzf --header-lines=1
+
+# Delete pods by name
+kubectl get pod -o wide | fzf --header-lines=1 -m | awk {'print $1'} | xargs kubectl delete pod
+
+# Scale zero at deployments
+kubectl scale deployment --replicas 0 <deployment>
+
+$ deployment : kubectl get deployments --no-headers | awk {'print $1'}
+
+# Add label at node
+kubectl get node -L <label_key> | fzf --header-lines=1 -m | awk {'print $1'} | \
+    xargs -I {} kubectl label node {} <label_key>=<label_value>
+
+# Delete label at node
+kubectl get node -L <label_key> | fzf --header-lines=1 -m | awk {'print $1'} | \
+    xargs -I {} kubectl label node {} <label_key>-
+
+# Tail log all containers
+kubetail --tail 300 <pod>
+
+$ pod : kubectl get pod --no-headers | awk {'print $1'}
+

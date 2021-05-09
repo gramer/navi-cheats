@@ -1,0 +1,11 @@
+# idea
+.idea
+
+# personal env
+.envrc
+
+# npm
+/node_modules/
+package-lock.json
+package.json
+commitlint.config.js

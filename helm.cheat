@@ -1,0 +1,9 @@
+% zeno, helm
+
+# Get helm list and describe (need plugin: fullstatus)
+helm fullstatus <release-name>
+
+# Get helm values by name
+helm get values <release-name>
+
+$ release-name : helm ls | fzf --header-lines=1 | cut -f 1

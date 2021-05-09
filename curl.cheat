@@ -1,0 +1,7 @@
+% zeno, curl, ab
+
+# Watch with curl
+watch -n 1 curl -s -w "@${HOME}/curl-format.txt" -I "<url>"
+
+# Execute ab (ApacheBench)
+ab -t <seconds> -v 1 <url>
