@@ -1,31 +1,78 @@
 % zeno, k8s
 
-# Get java env on deployment
-kubectl get deployment -n <namespace> -o json | jq -c '.items[] | .metadata.name as $name | .spec.template.spec.containers[] | .env[] | select((.name=="JAVA_TOOL_OPTIONS") or (.name=="JAVA_OPTS")) | [$name, .value]'
+# Get pod resource quota on deployment
+kubectl get deployment -n <namespace> -o json | \
+    jq -r '"POD\tCONTAINER\tCPU\tMEMORY",
+        ( .items[] | .metadata.name as $name | .spec.template.spec.containers[] | .name as $container_name | .resources | "\($name)\t\($container_name)\t\(.requests)\t\(.limits)" )
+    ' | \
+    column -t -s $'\t'
 
-$ namespace : kubectl get namespace --no-headers | awk {'print $1'}
+# Get java env on deployment
+kubectl get deployment -n <namespace> -o json | \
+    jq -c '.items[] | .metadata.name as $name | .spec.template.spec.containers[] | .env[] | select((.name=="JAVA_TOOL_OPTIONS") or (.name=="JAVA_OPTS")) | [$name, .value]'
+
+# Get pod with qos
+kubectl get pod --output=custom-columns="NAME:.metadata.name,QOS:.status.qosClass,NODE:.spec.nodeName"
 
 # Get api-resources
-kubectl api-resources -o wide | fzf --header-lines=1
+kubectl api-resources -o wide | fzf --header-lines 1
 
 # Delete pods by name
-kubectl get pod -o wide | fzf --header-lines=1 -m | awk {'print $1'} | xargs kubectl delete pod
+kubectl delete pod <pod>
 
 # Scale zero at deployments
 kubectl scale deployment --replicas 0 <deployment>
 
-$ deployment : kubectl get deployments --no-headers | awk {'print $1'}
+# Get deployment by name
+kubectl get deployment <deployment> -o yaml
+
+# Get service by name
+kubectl get service <service> -o yaml
+
+# Get sts by name
+kubectl get sts <sts> -o yaml
+
+# Get node with capacity
+kubectl get node --output=custom-columns="NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory"
 
 # Add label at node
-kubectl get node -L <label_key> | fzf --header-lines=1 -m | awk {'print $1'} | \
-    xargs -I {} kubectl label node {} <label_key>=<label_value>
+kubectl get node -L <label-key> | fzf --header-lines=1 -m | awk {'print $1'} | \
+    xargs -I {} kubectl label node {} <label-key>=<label_value>
 
 # Delete label at node
-kubectl get node -L <label_key> | fzf --header-lines=1 -m | awk {'print $1'} | \
-    xargs -I {} kubectl label node {} <label_key>-
+kubectl get node -L <label-key> | fzf --header-lines=1 -m | awk {'print $1'} | \
+    xargs -I {} kubectl label node {} <label-key>-
 
 # Tail log all containers
 kubetail --tail 300 <pod>
 
-$ pod : kubectl get pod --no-headers | awk {'print $1'}
+# Delete pv immediately
+kubectl get pv | fzf --header-lines=1 | awk {'print $1'} | \
+    xargs -I {} kubectl patch pv {} -p '{"metadata":{"finalizers": []}}' --type=merge
+
+# Create job from Cronjob manually
+kubectl create job --from=cronjob/<cronjob> <job_name>
+
+# Get ingress and open url
+open http://<ingress-url>
+
+# Get ingress and see details
+kubectl get ingress <ingress> -o yaml
+
+# Top by kubectl
+kubectl top <node-or-pod> --use-protocol-buffers=true --sort-by=cpu
+
+$ cronjob : kubectl get cronjob -o wide --- --header-lines 1 --column 1
+$ deployment : kubectl get deployments --- --header-lines 1 --column 1
+$ ingress : kubectl get ingress -o wide --- --header-lines 1 --column 1
+$ ingress-url : kubectl get ingress -o wide --- --header-lines 1 --column 2
+$ service : kubectl get service -o wide --- --header-lines 1 --column 1
+$ namespace : kubectl get namespace -o wide --- --header-lines 1 --column 1
+$ node-or-pod : echo 'node pod' | tr ' ' '\n'
+$ pod : kubectl get pod -o wide --- header-lines 1 --column 1
+$ sts : kubectl get sts -o wide --- --header-lines 1 --column 1
+
+
+
+
 

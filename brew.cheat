@@ -1,0 +1,15 @@
+% zeno, brew
+
+# List brew services
+brew services list
+
+# Stop brew service
+brew services stop <service>
+
+# Start brew service
+brew services start <service>
+
+# Restart brew service
+brew services restart <service>
+
+$ service : brew services list
