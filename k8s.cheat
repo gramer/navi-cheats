@@ -1,9 +1,23 @@
 % zeno, k8s
 
-# Get pod resource quota on deployment
+# Get resource quota on deployment
 kubectl get deployment -n <namespace> -o json | \
-    jq -r '"POD\tCONTAINER\tCPU\tMEMORY",
+    jq -r '"DEPLOYMENT\tCONTAINER\tCPU\tMEMORY",
         ( .items[] | .metadata.name as $name | .spec.template.spec.containers[] | .name as $container_name | .resources | "\($name)\t\($container_name)\t\(.requests)\t\(.limits)" )
+    ' | \
+    column -t -s $'\t'
+
+# Get liveness on deployment
+kubectl get deployment -n <namespace> -o json | \
+    jq -r '"DEPLOYMENT\tCONTAINER\tLIVENESS",
+        ( .items[] | .metadata.name as $name | .spec.template.spec.containers[] | .name as $container_name | .livenessProbe | "\($name)\t\($container_name)\t\(.httpGet.path)" )
+    ' | \
+    column -t -s $'\t'
+
+# Get liveness on pod
+kubectl get pod -n <namespace> -o json | \
+    jq -r '"POD\tCONTAINER\tLIVENESS",
+        ( .items[] | .metadata.name as $name | .spec.containers[] | .name as $container_name | .livenessProbe | "\($name)\t\($container_name)\t\(.httpGet.path)" )
     ' | \
     column -t -s $'\t'
 
@@ -14,17 +28,28 @@ kubectl get deployment -n <namespace> -o json | \
 # Get pod with qos
 kubectl get pod --output=custom-columns="NAME:.metadata.name,QOS:.status.qosClass,NODE:.spec.nodeName"
 
+# Get pod with node name for reporting
+echo <pod-with-node>
+
 # Get api-resources
 kubectl api-resources -o wide | fzf --header-lines 1
 
 # Delete pods by name
-kubectl delete pod <pod>
+echo "<pods>" | xargs kubectl delete pod
+
+# Delete jobs by name
+echo "<jobs>" | xargs kubectl delete job
+
+$ pod-with-node: kubectl get pod --output=custom-columns="POD:.metadata.name,NODE:.spec.nodeName,NODE_IP:.status.hostIP" --sort-by=.spec.nodeName --- --header-lines 1
 
 # Scale zero at deployments
 kubectl scale deployment --replicas 0 <deployment>
 
 # Get deployment by name
 kubectl get deployment <deployment> -o yaml
+
+# Get deployment with nodeSelector
+kubectl get deployment -o=custom-columns=NAME:.metadata.name,NODE_SELECTOR:.spec.template.spec.nodeSelector
 
 # Get service by name
 kubectl get service <service> -o yaml
@@ -34,6 +59,9 @@ kubectl get sts <sts> -o yaml
 
 # Get node with capacity
 kubectl get node --output=custom-columns="NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory"
+
+# Get node from pod
+kubectl describe node <node-from-pod>
 
 # Add label at node
 kubectl get node -L <label-key> | fzf --header-lines=1 -m | awk {'print $1'} | \
@@ -50,8 +78,11 @@ kubetail --tail 300 <pod>
 kubectl get pv | fzf --header-lines=1 | awk {'print $1'} | \
     xargs -I {} kubectl patch pv {} -p '{"metadata":{"finalizers": []}}' --type=merge
 
+# Get cronjob by name
+kubectl get cronjob <cronjob>
+
 # Create job from Cronjob manually
-kubectl create job --from=cronjob/<cronjob> <job_name>
+kubectl create job --from=cronjob/<cronjob> "test-<cronjob>-`date +%s`"
 
 # Get ingress and open url
 open http://<ingress-url>
@@ -62,15 +93,34 @@ kubectl get ingress <ingress> -o yaml
 # Top by kubectl
 kubectl top <node-or-pod> --use-protocol-buffers=true --sort-by=cpu
 
+# Check auth by resources in cluster-wide (namespace=false)
+kubectl api-resources --namespaced=false -o wide | fzf -m --header-lines 1 | cut -f 1 -d ' ' |
+    xargs -I {} bash -c 'echo "{} :";kubectl auth can-i <k8s-verb> {};echo '
+
+# Check auth by resources in namespace (namespace=true)
+kubectl api-resources --namespaced=true -o wide | fzf -m --header-lines 1 | cut -f 1 -d ' ' |
+    xargs -I {} bash -c 'echo "{} :";kubectl auth can-i <k8s-verb> {};echo '
+
+# Get nodes with labels which currently used in specific namespace 
+echo "<used-nodes-in-namespace>" | sort | uniq | awk '$1!="\<none\>" {print $1}' 2>/dev/null | \
+    xargs kubectl get nodes --show-labels
+
 $ cronjob : kubectl get cronjob -o wide --- --header-lines 1 --column 1
 $ deployment : kubectl get deployments --- --header-lines 1 --column 1
 $ ingress : kubectl get ingress -o wide --- --header-lines 1 --column 1
 $ ingress-url : kubectl get ingress -o wide --- --header-lines 1 --column 2
-$ service : kubectl get service -o wide --- --header-lines 1 --column 1
+$ job : kubectl get job --- --header-lines 1 --column 1
+$ jobs : kubectl get job --- --header-lines 1 --column 1 --multi
+$ k8s-verb: echo 'create get list delete' | tr ' ' '\n'
 $ namespace : kubectl get namespace -o wide --- --header-lines 1 --column 1
+$ node-from-pod : kubectl get pod -o wide --- header-lines 1 --column 7
 $ node-or-pod : echo 'node pod' | tr ' ' '\n'
 $ pod : kubectl get pod -o wide --- header-lines 1 --column 1
+$ pods : kubectl get pod -o wide --- --header-lines 1 --column 1 --multi
+$ pod-with-node: kubectl get pod --output=custom-columns="POD:.metadata.name,NODE:.spec.nodeName,NODE_IP:.status.hostIP" --sort-by=.spec.nodeName --- --header-lines 1
+$ service : kubectl get service -o wide --- --header-lines 1 --column 1
 $ sts : kubectl get sts -o wide --- --header-lines 1 --column 1
+$ used-nodes-in-namespace : kubectl get pod -n <namespace> -o wide --- --header-lines 1 --column 7 --multi
 
 
 
