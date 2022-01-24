@@ -1,0 +1,17 @@
+% zeno, k8s, krew
+
+# setup krew
+open https://krew.sigs.k8s.io/docs/user-guide/setup/install
+
+# install krew from list
+kubectl krew install <krew-list>
+
+# pod-dive
+kubectl pod-dive <pod>
+
+# resource-capacity
+kubectl resource-capacity --sort cpu.request | fzf --header-lines 1
+
+
+$ krew-list : kubectl krew search --- --header-lines 1 --column 1
+$ pod : kubectl get pod -o wide --- header-lines 1 --column 1

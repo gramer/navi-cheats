@@ -2,7 +2,7 @@
 
 # Get resource quota on deployment
 kubectl get deployment -n <namespace> -o json | \
-    jq -r '"DEPLOYMENT\tCONTAINER\tCPU\tMEMORY",
+    jq -r '"DEPLOYMENT\tCONTAINER\tREQUESTS\tLIMITS",
         ( .items[] | .metadata.name as $name | .spec.template.spec.containers[] | .name as $container_name | .resources | "\($name)\t\($container_name)\t\(.requests)\t\(.limits)" )
     ' | \
     column -t -s $'\t'
@@ -37,13 +37,19 @@ kubectl api-resources -o wide | fzf --header-lines 1
 # Delete pods by name
 echo "<pods>" | xargs kubectl delete pod
 
+# Delete pay pods by name
+echo "<pay-pods>" | xargs kubectl delete pod
+
 # Delete jobs by name
 echo "<jobs>" | xargs kubectl delete job
 
 $ pod-with-node: kubectl get pod --output=custom-columns="POD:.metadata.name,NODE:.spec.nodeName,NODE_IP:.status.hostIP" --sort-by=.spec.nodeName --- --header-lines 1
 
-# Scale zero at deployments
-kubectl scale deployment --replicas 0 <deployment>
+# Scale deployments
+kubectl scale deployment --replicas <count> <deployment>
+
+# Scale Statefulset
+kubectl scale sts --replicas <count> <statefulset>
 
 # Get deployment by name
 kubectl get deployment <deployment> -o yaml
@@ -62,6 +68,9 @@ kubectl get node --output=custom-columns="NAME:.metadata.name,CPU:.status.capaci
 
 # Get node from pod
 kubectl describe node <node-from-pod>
+
+# Detach pod by label
+kubectl label pods <pod> pay.project.name=zeno-`date +%Y%m%d` --overwrite
 
 # Add label at node
 kubectl get node -L <label-key> | fzf --header-lines=1 -m | awk {'print $1'} | \
@@ -97,6 +106,12 @@ kubectl top <node-or-pod> --use-protocol-buffers=true --sort-by=cpu
 kubectl api-resources --namespaced=false -o wide | fzf -m --header-lines 1 | cut -f 1 -d ' ' |
     xargs -I {} bash -c 'echo "{} :";kubectl auth can-i <k8s-verb> {};echo '
 
+# Copy file from pod to local
+kubectl cp <pod>:<filename> <filename>
+
+# Istio Proxy Port Check (outbound 15001, inbound: 15006)
+istioctl proxy-config listener <pod> | fzf -m --header-lines 1
+
 # Check auth by resources in namespace (namespace=true)
 kubectl api-resources --namespaced=true -o wide | fzf -m --header-lines 1 | cut -f 1 -d ' ' |
     xargs -I {} bash -c 'echo "{} :";kubectl auth can-i <k8s-verb> {};echo '
@@ -105,19 +120,25 @@ kubectl api-resources --namespaced=true -o wide | fzf -m --header-lines 1 | cut 
 echo "<used-nodes-in-namespace>" | sort | uniq | awk '$1!="\<none\>" {print $1}' 2>/dev/null | \
     xargs kubectl get nodes --show-labels
 
+# Get all pods in specific node
+kubectl get pods --all-namespaces -o wide --field-selector spec.nodeName=<nodes>
+
 $ cronjob : kubectl get cronjob -o wide --- --header-lines 1 --column 1
 $ deployment : kubectl get deployments --- --header-lines 1 --column 1
+$ statefulset : kubectl get sts --- --header-lines 1 --column 1
 $ ingress : kubectl get ingress -o wide --- --header-lines 1 --column 1
 $ ingress-url : kubectl get ingress -o wide --- --header-lines 1 --column 2
 $ job : kubectl get job --- --header-lines 1 --column 1
 $ jobs : kubectl get job --- --header-lines 1 --column 1 --multi
-$ k8s-verb: echo 'create get list delete' | tr ' ' '\n'
+$ k8s-verb: echo 'create get list delete patch' | tr ' ' '\n'
 $ namespace : kubectl get namespace -o wide --- --header-lines 1 --column 1
 $ node-from-pod : kubectl get pod -o wide --- header-lines 1 --column 7
 $ node-or-pod : echo 'node pod' | tr ' ' '\n'
+$ nodes : kubectl get nodes --- --header-lines 1 --column 1
+$ pay-pods : kubectl get pod -L pay.project.name --- --header-lines 1 --column 1 --multi
 $ pod : kubectl get pod -o wide --- header-lines 1 --column 1
-$ pods : kubectl get pod -o wide --- --header-lines 1 --column 1 --multi
 $ pod-with-node: kubectl get pod --output=custom-columns="POD:.metadata.name,NODE:.spec.nodeName,NODE_IP:.status.hostIP" --sort-by=.spec.nodeName --- --header-lines 1
+$ pods : kubectl get pod -o wide --- --header-lines 1 --column 1 --multi
 $ service : kubectl get service -o wide --- --header-lines 1 --column 1
 $ sts : kubectl get sts -o wide --- --header-lines 1 --column 1
 $ used-nodes-in-namespace : kubectl get pod -n <namespace> -o wide --- --header-lines 1 --column 7 --multi
